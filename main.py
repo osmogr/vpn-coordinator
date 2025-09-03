@@ -132,7 +132,8 @@ HEADER_HTML = f"""
     <h1>VPN Request & Coordination Portal</h1>
     <div class="subtitle">Create site-to-site VPN requests, gather remote/local details, review and get mutual agreement.</div>
   </div>
-  <div style="text-align:right">
+  <div style="text-align:right; display: flex; gap: 12px; align-items: center;">
+    <a href="/admin" style="color: #cbd5e1; text-decoration: none; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.1);">Admin Panel</a>
     <small class="muted">Single-file demo — set BASE_URL env var for correct links</small>
   </div>
 </header>
@@ -620,6 +621,212 @@ def agree(token):
     # GET: show review page
     content = render_template_string(REVIEW_TEMPLATE, vpn=vpn, remote=remote, local=local)
     return render_page(content)
+
+
+# -------------------------
+# Admin Panel
+# -------------------------
+@app.route("/admin")
+def admin_panel():
+    """Admin panel to view all VPN requests and re-trigger email alerts."""
+    requests = VPNRequest.query.order_by(VPNRequest.id.desc()).all()
+    
+    content = f"""
+      <h2>Admin Panel - VPN Requests</h2>
+      <p class="hint">View all VPN requests and re-trigger email alerts as needed.</p>
+      
+      <table class="kv" style="width: 100%; margin-top: 16px;">
+        <thead>
+          <tr style="background: #f8fafc;">
+            <th style="padding: 12px 8px;">ID</th>
+            <th style="padding: 12px 8px;">VPN Name</th>
+            <th style="padding: 12px 8px;">Type</th>
+            <th style="padding: 12px 8px;">Status</th>
+            <th style="padding: 12px 8px;">Created</th>
+            <th style="padding: 12px 8px;">Remote Contact</th>
+            <th style="padding: 12px 8px;">Local Team</th>
+            <th style="padding: 12px 8px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+    """
+    
+    for req in requests:
+        # Parse created timestamp for display
+        created_display = req.created_at[:10] if req.created_at else "N/A"
+        
+        # Status badge styling
+        status_class = ""
+        if req.status == "complete":
+            status_class = "style='background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;'"
+        elif req.status == "awaiting_agreement":
+            status_class = "style='background: #fef3c7; color: #92400e; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;'"
+        else:
+            status_class = "style='background: #e2e8f0; color: #475569; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;'"
+        
+        # Agreement status indicators
+        agreement_status = ""
+        if req.status == "awaiting_agreement":
+            remote_check = "✓" if req.remote_agreed else "○"
+            local_check = "✓" if req.local_agreed else "○"
+            agreement_status = f"<br><small class='muted'>Remote: {remote_check} Local: {local_check}</small>"
+        
+        content += f"""
+          <tr>
+            <td style="padding: 8px;">#{req.id}</td>
+            <td style="padding: 8px;"><strong>{req.vpn_name}</strong></td>
+            <td style="padding: 8px;">{req.vpn_type}</td>
+            <td style="padding: 8px;"><span {status_class}>{req.status.replace('_', ' ').title()}</span>{agreement_status}</td>
+            <td style="padding: 8px;">{created_display}</td>
+            <td style="padding: 8px;">{req.remote_contact_email}<br><small class='muted'>{req.remote_contact_name or 'N/A'}</small></td>
+            <td style="padding: 8px;">{req.local_team_email}</td>
+            <td style="padding: 8px;">
+              <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+                <form method="post" action="/admin/resend-initial/{req.id}" style="display: inline;">
+                  <button class="btn" style="font-size: 0.8rem; padding: 4px 8px;" type="submit">Resend Initial</button>
+                </form>
+                <form method="post" action="/admin/resend-agreement/{req.id}" style="display: inline;">
+                  <button class="btn secondary" style="font-size: 0.8rem; padding: 4px 8px;" type="submit" 
+                    {'disabled' if not (req.remote_data and req.local_data) else ''}>Resend Agreement</button>
+                </form>
+                <form method="post" action="/admin/resend-final/{req.id}" style="display: inline;">
+                  <button class="btn secondary" style="font-size: 0.8rem; padding: 4px 8px;" type="submit"
+                    {'disabled' if req.status != "complete" else ''}>Resend Final</button>
+                </form>
+              </div>
+            </td>
+          </tr>
+        """
+    
+    content += """
+        </tbody>
+      </table>
+      
+      <div style="margin-top: 20px;">
+        <a href="/" class="btn secondary">← Back to Home</a>
+      </div>
+      
+      <div class="pretty" style="margin-top: 16px;">
+        <h4 style="margin-top: 0;">Email Actions:</h4>
+        <ul style="margin: 8px 0;">
+          <li><strong>Resend Initial:</strong> Re-sends the initial email with unique links to remote contact and local team</li>
+          <li><strong>Resend Agreement:</strong> Re-sends review & agreement emails (only available when both sides have submitted details)</li>
+          <li><strong>Resend Final:</strong> Re-sends final summary email (only available for completed requests)</li>
+        </ul>
+      </div>
+    """
+    
+    return render_page(content)
+
+
+# -------------------------
+# Admin email re-trigger routes
+# -------------------------
+@app.route("/admin/resend-initial/<int:request_id>", methods=["POST"])
+def admin_resend_initial(request_id):
+    """Re-trigger initial detail request emails."""
+    vpn = VPNRequest.query.get_or_404(request_id)
+    
+    # Build links
+    remote_link = urljoin(BASE_URL, f"/remote/{vpn.remote_token}")
+    local_link = urljoin(BASE_URL, f"/local/{vpn.local_token}")
+    
+    # Send to remote contact
+    send_email(
+        vpn.remote_contact_email,
+        f"[VPN Portal] [RESENT] Please provide remote details for '{vpn.vpn_name}'",
+        f"<p>Hello {vpn.remote_contact_name or ''},</p>"
+        f"<p>Please provide your side's VPN details here: <a href='{remote_link}'>{remote_link}</a></p>"
+        f"<p>Reason: {vpn.reason}</p>"
+        f"<p><em>This is a resent email from the admin panel.</em></p>"
+    )
+    
+    # Send to local team (may be comma separated)
+    for addr in [a.strip() for a in vpn.local_team_email.split(",") if a.strip()]:
+        send_email(
+            addr,
+            f"[VPN Portal] [RESENT] Please provide local details for '{vpn.vpn_name}'",
+            f"<p>Please provide your local VPN details here: <a href='{local_link}'>{local_link}</a></p>"
+            f"<p>Reason: {vpn.reason}</p>"
+            f"<p><em>This is a resent email from the admin panel.</em></p>"
+        )
+    
+    flash(f"Initial emails resent for VPN request #{request_id} ({vpn.vpn_name})", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/resend-agreement/<int:request_id>", methods=["POST"])
+def admin_resend_agreement(request_id):
+    """Re-trigger agreement/review emails."""
+    vpn = VPNRequest.query.get_or_404(request_id)
+    
+    if not (vpn.remote_data and vpn.local_data):
+        flash(f"Cannot resend agreement emails - both sides haven't submitted details yet", "error")
+        return redirect(url_for("admin_panel"))
+    
+    # Build review links
+    base = BASE_URL.rstrip("/")
+    remote_review = urljoin(base + "/", f"agree/{vpn.remote_token}")
+    local_review = urljoin(base + "/", f"agree/{vpn.local_token}")
+    
+    # Send to remote contact
+    send_email(
+        vpn.remote_contact_email,
+        f"[VPN Portal] [RESENT] Review & Agree — {vpn.vpn_name}",
+        f"<p>Both sides have submitted details for <strong>{vpn.vpn_name}</strong>.</p>"
+        f"<p>Please review and either Agree or Edit using this link: <a href='{remote_review}'>{remote_review}</a></p>"
+        f"<p><em>This is a resent email from the admin panel.</em></p>"
+    )
+    
+    # Send to local team (may be comma list)
+    for addr in [a.strip() for a in vpn.local_team_email.split(",") if a.strip()]:
+        send_email(
+            addr,
+            f"[VPN Portal] [RESENT] Review & Agree — {vpn.vpn_name}",
+            f"<p>Both sides have submitted details for <strong>{vpn.vpn_name}</strong>.</p>"
+            f"<p>Please review and either Agree or Edit using this link: <a href='{local_review}'>{local_review}</a></p>"
+            f"<p><em>This is a resent email from the admin panel.</em></p>"
+        )
+    
+    flash(f"Agreement emails resent for VPN request #{request_id} ({vpn.vpn_name})", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/resend-final/<int:request_id>", methods=["POST"])
+def admin_resend_final(request_id):
+    """Re-trigger final summary emails."""
+    vpn = VPNRequest.query.get_or_404(request_id)
+    
+    if vpn.status != "complete":
+        flash(f"Cannot resend final emails - VPN request is not yet complete", "error")
+        return redirect(url_for("admin_panel"))
+    
+    # Parse JSON data for summary
+    remote = {}
+    local = {}
+    try:
+        remote = json.loads(vpn.remote_data) if vpn.remote_data else {}
+        local = json.loads(vpn.local_data) if vpn.local_data else {}
+    except:
+        pass
+    
+    # Generate summary
+    summary_html = render_template_string(
+        "<h3>Finalized VPN: {{ vpn.vpn_name }}</h3><h4>Local Side</h4><pre>{{ local_pretty }}</pre><h4>Remote Side</h4><pre>{{ remote_pretty }}</pre><p><em>This is a resent email from the admin panel.</em></p>",
+        vpn=vpn,
+        local_pretty=json.dumps(local, indent=2),
+        remote_pretty=json.dumps(remote, indent=2)
+    )
+    
+    # Send to remote contact
+    send_email(vpn.remote_contact_email, f"[VPN Portal] [RESENT] Finalized VPN - {vpn.vpn_name}", summary_html)
+    
+    # Send to local team
+    for addr in [a.strip() for a in vpn.local_team_email.split(",") if a.strip()]:
+        send_email(addr, f"[VPN Portal] [RESENT] Finalized VPN - {vpn.vpn_name}", summary_html)
+    
+    flash(f"Final summary emails resent for VPN request #{request_id} ({vpn.vpn_name})", "success")
+    return redirect(url_for("admin_panel"))
 
 
 # -------------------------
