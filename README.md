@@ -1,1 +1,1 @@
-# vpn-coordinator
+# VPN Request & Coordination Portal
