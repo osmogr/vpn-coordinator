@@ -8,7 +8,7 @@ WHAT THIS FILE DOES
   reason, remote contact, local team emails).
 - Emails unique tokenized links to the Remote contact and Local network team.
 - Remote and Local each fill their own detailed form (gateway, IKE, crypto, DH group,
-  PSK, protected subnets, notes).
+  protected subnets, notes).
 - When both sides submit, a Review/Agreement email is sent; each side can Review and
   either Agree or Edit their side. Both must Agree to finalize.
 - Final summary email is sent to both sides when both agree.
@@ -27,7 +27,6 @@ ENVIRONMENT VARIABLES
 
 SECURITY NOTES
 - Tokens are unguessable UUIDs but treat links as sensitive.
-- PSKs are stored in plaintext for demo simplicity — do NOT use this as-is in production. Use KMS/vault & encryption at rest.
 - Use HTTPS in production; add authentication / allowlists / rate limiting as needed.
 """
 
