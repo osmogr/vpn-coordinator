@@ -34,9 +34,13 @@ The structured review page displaying configuration details in organized Phase 1
 ![Enhanced Review Page](https://github.com/user-attachments/assets/776c002e-40bd-4f4f-b3fb-71d13036a7ab)
 
 ### Admin Panel
-Administrative interface for managing VPN requests with document download capabilities:
+Administrative interface for managing VPN requests with intelligent button controls and document download capabilities:
 
-![Admin Panel](https://github.com/user-attachments/assets/a84fecb5-c56d-40a8-bdb4-10ebed5ea2a5)
+![Admin Panel - Before Fix](https://github.com/user-attachments/assets/f2042e4c-8216-4caa-9c52-60cf80da78b1)
+*Admin Panel showing the previous behavior where all buttons were available for completed requests*
+
+![Admin Panel - After Fix](https://github.com/user-attachments/assets/ff427c39-cd9c-4712-a888-abc61e290e03)
+*Admin Panel with improved button logic: only "Resend Final" is available for completed requests, "Cancel Request" is hidden for completed/cancelled requests*
 
 ## Quick Start
 
@@ -143,14 +147,38 @@ For completed VPN requests:
 Access the admin panel at `/admin` to:
 - View all VPN requests in a tabular format
 - Check request status and details
-- Resend email notifications:
-  - **Resend Initial**: Re-send initial access links
-  - **Resend Agreement**: Re-send review & agreement emails
-  - **Resend Final**: Re-send final summary emails (includes document attachments)
+- Resend email notifications with intelligent button controls:
+  - **Resend Initial**: Re-send initial access links (disabled for completed requests)
+  - **Resend Agreement**: Re-send review & agreement emails (disabled for completed requests)  
+  - **Resend Final**: Re-send final summary emails (only enabled for completed requests)
+- Manage request lifecycle:
+  - **Cancel Request**: Cancel pending requests (hidden for completed/cancelled requests)
 - Download generated documents:
   - **📄 PDF**: Download professional formatted documentation
   - **📝 TXT**: Download plain text documentation
   - *Note: Download links only appear for completed VPN requests*
+
+### Admin Panel Button Logic
+
+The admin panel implements intelligent button controls based on request status:
+
+**For Pending Requests (awaiting_details, awaiting_agreement):**
+- ✅ Resend Initial: Enabled
+- ✅ Resend Agreement: Enabled (only when both sides have submitted details)
+- ❌ Resend Final: Disabled  
+- ✅ Cancel Request: Visible and enabled
+
+**For Completed Requests:**
+- ❌ Resend Initial: Disabled (no longer needed)
+- ❌ Resend Agreement: Disabled (no longer needed)
+- ✅ Resend Final: Enabled (can resend summary with attachments)
+- 🚫 Cancel Request: Hidden (cannot cancel completed requests)
+- ✅ Document Downloads: Available (PDF/TXT links visible)
+
+**For Cancelled Requests:**
+- ❌ All buttons: Disabled
+- 🚫 Cancel Request: Hidden
+- ❌ Document Downloads: Not available
 
 ## Configuration
 
