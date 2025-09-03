@@ -16,12 +16,12 @@ A Flask-based web application for coordinating site-to-site VPN requests between
 ### Main Submission Interface
 The initial form where VPN requests are submitted:
 
-![VPN Submission Form](https://github.com/user-attachments/assets/f1832214-5a9d-4fce-807e-636e04f86b94)
+![VPN Submission Form](https://github.com/user-attachments/assets/35895014-d17e-47c6-a454-519f613681d4)
 
 ### Admin Panel
-Administrative interface for managing VPN requests:
+Administrative interface for managing VPN requests with example data:
 
-![Admin Panel](https://github.com/user-attachments/assets/c289c437-1b87-4b63-9420-b86c6d06e27f)
+![Admin Panel](https://github.com/user-attachments/assets/a16bd377-babb-47ad-abc3-11b02d22954e)
 
 ## Quick Start
 
@@ -83,7 +83,6 @@ The remote contact receives a link to provide:
 - IKE version and configuration
 - Cryptographic settings
 - Diffie-Hellman group
-- Pre-shared key (PSK)
 - Protected subnets
 - Additional notes
 
@@ -144,7 +143,6 @@ export SMTP_FROM="vpn-portal@yourcompany.com"
 ⚠️ **Important Security Notes**:
 
 - **Tokens**: Links contain unguessable UUIDs but should be treated as sensitive
-- **PSKs**: Pre-shared keys are stored in plaintext - **NOT suitable for production use**
 - **HTTPS**: Use HTTPS in production environments
 - **Authentication**: Add proper authentication and authorization for production
 - **Rate Limiting**: Implement rate limiting to prevent abuse
