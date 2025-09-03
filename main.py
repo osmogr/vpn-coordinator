@@ -37,14 +37,25 @@ import os
 import json
 import uuid
 from urllib.parse import urljoin
+from datetime import datetime
 
 from flask import (
     Flask, request, redirect, url_for,
-    render_template_string, abort, flash
+    render_template_string, abort, flash, send_file
 )
 from flask_sqlalchemy import SQLAlchemy
 from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 import smtplib
+
+# PDF generation imports
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib import colors
 
 # -------------------------
 # Configuration
@@ -96,6 +107,266 @@ with app.app_context():
     db.create_all()
 
 # -------------------------
+# Document generation helpers
+# -------------------------
+def ensure_documents_dir():
+    """Ensure the documents directory exists."""
+    docs_dir = os.path.join(os.getcwd(), 'documents')
+    if not os.path.exists(docs_dir):
+        os.makedirs(docs_dir)
+    return docs_dir
+
+def format_vpn_data_as_text(vpn_request):
+    """Format VPN request data as clean text."""
+    # Parse JSON data
+    remote_data = {}
+    local_data = {}
+    try:
+        remote_data = json.loads(vpn_request.remote_data) if vpn_request.remote_data else {}
+        local_data = json.loads(vpn_request.local_data) if vpn_request.local_data else {}
+    except:
+        pass
+    
+    text_content = []
+    text_content.append("=" * 60)
+    text_content.append("VPN REQUEST SUMMARY")
+    text_content.append("=" * 60)
+    text_content.append("")
+    
+    # Basic request information
+    text_content.append("BASIC INFORMATION")
+    text_content.append("-" * 20)
+    text_content.append(f"Request ID: #{vpn_request.id}")
+    text_content.append(f"VPN Name: {vpn_request.vpn_name}")
+    text_content.append(f"VPN Type: {vpn_request.vpn_type}")
+    text_content.append(f"Status: {vpn_request.status}")
+    text_content.append(f"Created: {vpn_request.created_at}")
+    text_content.append(f"Reason: {vpn_request.reason}")
+    text_content.append("")
+    
+    # Requester information
+    if vpn_request.requester_name or vpn_request.requester_email:
+        text_content.append("REQUESTER INFORMATION")
+        text_content.append("-" * 25)
+        if vpn_request.requester_name:
+            text_content.append(f"Name: {vpn_request.requester_name}")
+        if vpn_request.requester_email:
+            text_content.append(f"Email: {vpn_request.requester_email}")
+        text_content.append("")
+    
+    # Remote side details
+    text_content.append("REMOTE SIDE DETAILS")
+    text_content.append("-" * 20)
+    text_content.append(f"Contact Name: {vpn_request.remote_contact_name}")
+    text_content.append(f"Contact Email: {vpn_request.remote_contact_email}")
+    
+    if remote_data:
+        for key, value in remote_data.items():
+            if value:  # Only show non-empty values
+                formatted_key = key.replace('_', ' ').title()
+                text_content.append(f"{formatted_key}: {value}")
+    else:
+        text_content.append("No technical details provided")
+    
+    text_content.append("")
+    
+    # Local side details
+    text_content.append("LOCAL SIDE DETAILS")
+    text_content.append("-" * 19)
+    text_content.append(f"Team Email: {vpn_request.local_team_email}")
+    
+    if local_data:
+        for key, value in local_data.items():
+            if value:  # Only show non-empty values
+                formatted_key = key.replace('_', ' ').title()
+                text_content.append(f"{formatted_key}: {value}")
+    else:
+        text_content.append("No technical details provided")
+    
+    text_content.append("")
+    
+    # Agreement status
+    text_content.append("AGREEMENT STATUS")
+    text_content.append("-" * 17)
+    text_content.append(f"Remote Agreed: {'Yes' if vpn_request.remote_agreed else 'No'}")
+    text_content.append(f"Local Agreed: {'Yes' if vpn_request.local_agreed else 'No'}")
+    text_content.append("")
+    text_content.append("=" * 60)
+    
+    return "\n".join(text_content)
+
+def generate_txt_file(vpn_request):
+    """Generate a TXT file for the VPN request."""
+    docs_dir = ensure_documents_dir()
+    filename = f"vpn_request_{vpn_request.id}_{vpn_request.vpn_name.replace(' ', '_')}.txt"
+    filepath = os.path.join(docs_dir, filename)
+    
+    text_content = format_vpn_data_as_text(vpn_request)
+    
+    with open(filepath, 'w', encoding='utf-8') as f:
+        f.write(text_content)
+    
+    return filepath, filename
+
+def generate_pdf_file(vpn_request):
+    """Generate a PDF file for the VPN request."""
+    docs_dir = ensure_documents_dir()
+    filename = f"vpn_request_{vpn_request.id}_{vpn_request.vpn_name.replace(' ', '_')}.pdf"
+    filepath = os.path.join(docs_dir, filename)
+    
+    # Parse JSON data
+    remote_data = {}
+    local_data = {}
+    try:
+        remote_data = json.loads(vpn_request.remote_data) if vpn_request.remote_data else {}
+        local_data = json.loads(vpn_request.local_data) if vpn_request.local_data else {}
+    except:
+        pass
+    
+    # Create PDF document
+    doc = SimpleDocTemplate(filepath, pagesize=A4)
+    styles = getSampleStyleSheet()
+    story = []
+    
+    # Title
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        spaceAfter=30,
+        alignment=TA_CENTER,
+        textColor=colors.darkblue
+    )
+    story.append(Paragraph("VPN REQUEST SUMMARY", title_style))
+    story.append(Spacer(1, 12))
+    
+    # Basic Information Section
+    section_style = ParagraphStyle(
+        'SectionHeader',
+        parent=styles['Heading2'],
+        fontSize=14,
+        spaceBefore=12,
+        spaceAfter=6,
+        textColor=colors.darkblue
+    )
+    
+    story.append(Paragraph("Basic Information", section_style))
+    
+    basic_data = [
+        ['Request ID', f'#{vpn_request.id}'],
+        ['VPN Name', vpn_request.vpn_name],
+        ['VPN Type', vpn_request.vpn_type],
+        ['Status', vpn_request.status.replace('_', ' ').title()],
+        ['Created', vpn_request.created_at[:19] if vpn_request.created_at else 'N/A'],
+        ['Reason', vpn_request.reason]
+    ]
+    
+    if vpn_request.requester_name:
+        basic_data.append(['Requester Name', vpn_request.requester_name])
+    if vpn_request.requester_email:
+        basic_data.append(['Requester Email', vpn_request.requester_email])
+    
+    basic_table = Table(basic_data, colWidths=[150, 350])
+    basic_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightblue),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(basic_table)
+    story.append(Spacer(1, 20))
+    
+    # Remote Side Section
+    story.append(Paragraph("Remote Side Details", section_style))
+    
+    remote_table_data = [
+        ['Contact Name', vpn_request.remote_contact_name],
+        ['Contact Email', vpn_request.remote_contact_email]
+    ]
+    
+    if remote_data:
+        for key, value in remote_data.items():
+            if value:
+                formatted_key = key.replace('_', ' ').title()
+                remote_table_data.append([formatted_key, str(value)])
+    
+    remote_table = Table(remote_table_data, colWidths=[150, 350])
+    remote_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.lightgreen),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(remote_table)
+    story.append(Spacer(1, 20))
+    
+    # Local Side Section  
+    story.append(Paragraph("Local Side Details", section_style))
+    
+    local_table_data = [
+        ['Team Email', vpn_request.local_team_email]
+    ]
+    
+    if local_data:
+        for key, value in local_data.items():
+            if value:
+                formatted_key = key.replace('_', ' ').title()
+                local_table_data.append([formatted_key, str(value)])
+    
+    local_table = Table(local_table_data, colWidths=[150, 350])
+    local_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.orange),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(local_table)
+    story.append(Spacer(1, 20))
+    
+    # Agreement Status
+    story.append(Paragraph("Agreement Status", section_style))
+    
+    agreement_data = [
+        ['Remote Party Agreed', 'Yes' if vpn_request.remote_agreed else 'No'],
+        ['Local Party Agreed', 'Yes' if vpn_request.local_agreed else 'No'],
+        ['Overall Status', 'Complete' if (vpn_request.remote_agreed and vpn_request.local_agreed) else 'Pending']
+    ]
+    
+    agreement_table = Table(agreement_data, colWidths=[150, 350])
+    agreement_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.purple),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.lightgrey),
+        ('GRID', (0, 0), (-1, -1), 1, colors.black)
+    ]))
+    
+    story.append(agreement_table)
+    
+    # Build PDF
+    doc.build(story)
+    
+    return filepath, filename
+
+# -------------------------
 # Shared CSS + Header HTML
 # -------------------------
 BASE_CSS = """
@@ -142,20 +413,44 @@ HEADER_HTML = f"""
 # -------------------------
 # Email helper (fallback prints)
 # -------------------------
-def send_email(to_addrs, subject, body):
+def send_email(to_addrs, subject, body, attachments=None):
     """
     Sends email via configured SMTP if present; otherwise prints to console.
     `to_addrs` may be a string or list.
+    `attachments` may be a list of file paths to attach.
     """
     if isinstance(to_addrs, str):
         to = [to_addrs]
     else:
         to = to_addrs
 
-    msg = MIMEText(body, "html", "utf-8")
+    # Create multipart message for potential attachments
+    msg = MIMEMultipart()
     msg["Subject"] = subject
     msg["From"] = SMTP_FROM
     msg["To"] = ", ".join(to)
+    
+    # Add HTML body
+    msg.attach(MIMEText(body, "html", "utf-8"))
+    
+    # Add attachments if provided
+    if attachments:
+        for file_path in attachments:
+            if os.path.exists(file_path):
+                with open(file_path, "rb") as attachment:
+                    part = MIMEBase('application', 'octet-stream')
+                    part.set_payload(attachment.read())
+                
+                encoders.encode_base64(part)
+                
+                # Add header with filename
+                filename = os.path.basename(file_path)
+                part.add_header(
+                    'Content-Disposition',
+                    f'attachment; filename= {filename}',
+                )
+                
+                msg.attach(part)
 
     # If SMTP_HOST is empty, fallback to printing
     if not SMTP_HOST:
@@ -163,6 +458,8 @@ def send_email(to_addrs, subject, body):
         print("To:", msg["To"])
         print("Subject:", subject)
         print("Body:\n", body)
+        if attachments:
+            print(f"Attachments: {', '.join([os.path.basename(f) for f in attachments if os.path.exists(f)])}")
         print("--- end email ---\n")
         return
 
@@ -175,12 +472,16 @@ def send_email(to_addrs, subject, body):
                 s.login(SMTP_USER, SMTP_PASS)
             s.sendmail(SMTP_FROM, to, msg.as_string())
         print(f"[email] sent to {to}")
+        if attachments:
+            print(f"[email] attachments: {', '.join([os.path.basename(f) for f in attachments if os.path.exists(f)])}")
     except Exception as e:
         print("[email] send failed — printing fallback. Error:", e)
         print("\n--- EMAIL FALLBACK ---")
         print("To:", msg["To"])
         print("Subject:", subject)
         print("Body:\n", body)
+        if attachments:
+            print(f"Attachments: {', '.join([os.path.basename(f) for f in attachments if os.path.exists(f)])}")
         print("--- end email ---\n")
 
 
@@ -625,19 +926,45 @@ def agree(token):
             if vpn.remote_agreed and vpn.local_agreed:
                 vpn.status = "complete"
                 db.session.commit()
+                
+                # Generate PDF and TXT files
+                try:
+                    pdf_path, pdf_filename = generate_pdf_file(vpn)
+                    txt_path, txt_filename = generate_txt_file(vpn)
+                    attachments = [pdf_path, txt_path]
+                except Exception as e:
+                    print(f"[warning] Failed to generate documents: {e}")
+                    attachments = []
+                
                 # Send final summary to both parties
                 summary_html = render_template_string(
-                    "<h3>Finalized VPN: {{ vpn.vpn_name }}</h3><h4>Local Side</h4><pre>{{ local_pretty }}</pre><h4>Remote Side</h4><pre>{{ remote_pretty }}</pre>",
+                    "<h3>Finalized VPN: {{ vpn.vpn_name }}</h3>"
+                    "<h4>Local Side</h4><pre>{{ local_pretty }}</pre>"
+                    "<h4>Remote Side</h4><pre>{{ remote_pretty }}</pre>"
+                    "<p><strong>Documentation:</strong> PDF and TXT files with complete VPN details are attached to this email.</p>",
                     vpn=vpn,
                     local_pretty=json.dumps(local, indent=2),
                     remote_pretty=json.dumps(remote, indent=2)
                 )
+                
                 # send to remote contact
-                send_email(vpn.remote_contact_email, f"[VPN Portal] Finalized VPN - {vpn.vpn_name}", summary_html)
+                send_email(
+                    vpn.remote_contact_email, 
+                    f"[VPN Portal] Finalized VPN - {vpn.vpn_name}", 
+                    summary_html,
+                    attachments
+                )
+                
                 # send to every address in local team field
                 for addr in [a.strip() for a in vpn.local_team_email.split(",") if a.strip()]:
-                    send_email(addr, f"[VPN Portal] Finalized VPN - {vpn.vpn_name}", summary_html)
-                return render_page("<p class='hint'>✅ Both parties have agreed. Final summary emails sent.</p>", messages=[("success", "Both parties agreed — finalized.")])
+                    send_email(
+                        addr, 
+                        f"[VPN Portal] Finalized VPN - {vpn.vpn_name}", 
+                        summary_html,
+                        attachments
+                    )
+                    
+                return render_page("<p class='hint'>✅ Both parties have agreed. Final summary emails sent with documentation attachments.</p>", messages=[("success", "Both parties agreed — finalized.")])
             else:
                 return render_page("<p class='hint'>Your agreement was recorded. Waiting on the other party.</p>", messages=[("success", "Agreement recorded.")])
 
@@ -725,6 +1052,7 @@ def admin_panel():
                     {'disabled' if req.status in ['complete', 'cancelled'] else ''}>Cancel Request</button>
                 </form>
               </div>
+              {'<div style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;"><a href="/admin/download/' + str(req.id) + '/pdf" class="btn secondary" style="font-size: 0.7rem; padding: 3px 6px; text-decoration: none;">📄 PDF</a><a href="/admin/download/' + str(req.id) + '/txt" class="btn secondary" style="font-size: 0.7rem; padding: 3px 6px; text-decoration: none;">📝 TXT</a></div>' if req.status == "complete" else ''}
             </td>
           </tr>
         """
@@ -743,6 +1071,12 @@ def admin_panel():
           <li><strong>Resend Initial:</strong> Re-sends the initial email with unique links to remote contact and local team</li>
           <li><strong>Resend Agreement:</strong> Re-sends review & agreement emails (only available when both sides have submitted details)</li>
           <li><strong>Resend Final:</strong> Re-sends final summary email (only available for completed requests)</li>
+        </ul>
+        <h4 style="margin-top: 16px;">Document Downloads:</h4>
+        <ul style="margin: 8px 0;">
+          <li><strong>📄 PDF / 📝 TXT:</strong> Download formatted documentation files (only available for completed requests)</li>
+          <li>PDF files contain professional formatting with tables and sections</li>
+          <li>TXT files provide plain text format for easy archival</li>
         </ul>
       </div>
     """
@@ -849,20 +1183,43 @@ def admin_resend_final(request_id):
     except:
         pass
     
+    # Generate PDF and TXT files
+    try:
+        pdf_path, pdf_filename = generate_pdf_file(vpn)
+        txt_path, txt_filename = generate_txt_file(vpn)
+        attachments = [pdf_path, txt_path]
+    except Exception as e:
+        print(f"[warning] Failed to generate documents: {e}")
+        attachments = []
+    
     # Generate summary
     summary_html = render_template_string(
-        "<h3>Finalized VPN: {{ vpn.vpn_name }}</h3><h4>Local Side</h4><pre>{{ local_pretty }}</pre><h4>Remote Side</h4><pre>{{ remote_pretty }}</pre><p><em>This is a resent email from the admin panel.</em></p>",
+        "<h3>Finalized VPN: {{ vpn.vpn_name }}</h3>"
+        "<h4>Local Side</h4><pre>{{ local_pretty }}</pre>"
+        "<h4>Remote Side</h4><pre>{{ remote_pretty }}</pre>"
+        "<p><strong>Documentation:</strong> PDF and TXT files with complete VPN details are attached to this email.</p>"
+        "<p><em>This is a resent email from the admin panel.</em></p>",
         vpn=vpn,
         local_pretty=json.dumps(local, indent=2),
         remote_pretty=json.dumps(remote, indent=2)
     )
     
     # Send to remote contact
-    send_email(vpn.remote_contact_email, f"[VPN Portal] [RESENT] Finalized VPN - {vpn.vpn_name}", summary_html)
+    send_email(
+        vpn.remote_contact_email, 
+        f"[VPN Portal] [RESENT] Finalized VPN - {vpn.vpn_name}", 
+        summary_html,
+        attachments
+    )
     
     # Send to local team
     for addr in [a.strip() for a in vpn.local_team_email.split(",") if a.strip()]:
-        send_email(addr, f"[VPN Portal] [RESENT] Finalized VPN - {vpn.vpn_name}", summary_html)
+        send_email(
+            addr, 
+            f"[VPN Portal] [RESENT] Finalized VPN - {vpn.vpn_name}", 
+            summary_html,
+            attachments
+        )
     
     flash(f"Final summary emails resent for VPN request #{request_id} ({vpn.vpn_name})", "success")
     return redirect(url_for("admin_panel"))
@@ -883,6 +1240,38 @@ def admin_cancel_request(request_id):
     
     flash(f"VPN request #{request_id} ({vpn.vpn_name}) has been cancelled", "success")
     return redirect(url_for("admin_panel"))
+
+
+# -------------------------
+# Document download routes
+# -------------------------
+@app.route("/admin/download/<int:request_id>/<file_type>")
+def download_document(request_id, file_type):
+    """Download generated PDF or TXT file for a VPN request."""
+    vpn = VPNRequest.query.get_or_404(request_id)
+    
+    if vpn.status != "complete":
+        flash(f"Cannot download documents - VPN request is not yet complete", "error")
+        return redirect(url_for("admin_panel"))
+    
+    try:
+        if file_type == "pdf":
+            file_path, filename = generate_pdf_file(vpn)
+        elif file_type == "txt":
+            file_path, filename = generate_txt_file(vpn)
+        else:
+            abort(404)
+        
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/octet-stream'
+        )
+        
+    except Exception as e:
+        flash(f"Error generating {file_type.upper()} file: {str(e)}", "error")
+        return redirect(url_for("admin_panel"))
 
 
 # -------------------------
