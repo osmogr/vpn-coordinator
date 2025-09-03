@@ -83,7 +83,7 @@ class VPNRequest(db.Model):
     remote_token = db.Column(db.String(64), unique=True, nullable=False)
     local_token = db.Column(db.String(64), unique=True, nullable=False)
 
-    status = db.Column(db.String(40), default="awaiting_details")  # awaiting_details | awaiting_agreement | complete
+    status = db.Column(db.String(40), default="awaiting_details")  # awaiting_details | awaiting_agreement | complete | cancelled
     remote_agreed = db.Column(db.Boolean, default=False)
     local_agreed = db.Column(db.Boolean, default=False)
 
@@ -384,9 +384,6 @@ SIDE_FORM_TEMPLATE = """
   <label>DH Group</label>
   <input type="text" name="dh_group" value="{{ data.get('dh_group','') }}" placeholder="e.g. 14, 19">
 
-  <label>Pre-Shared Key (PSK)</label>
-  <input type="text" name="psk" value="{{ data.get('psk','') }}" placeholder="PSK (stored plaintext in demo)">
-
   <label>Protected Subnets (comma-separated CIDRs)</label>
   <textarea name="subnets">{{ data.get('subnets','') }}</textarea>
 
@@ -407,6 +404,15 @@ def remote_form(token):
     vpn = get_request_by_token(token, "remote")
     if not vpn:
         abort(404)
+    
+    if vpn.status == "cancelled":
+        content = """
+          <h2>Request Cancelled</h2>
+          <p>This VPN request has been cancelled by an administrator.</p>
+          <p>No further processing is possible for this request.</p>
+          <p class="hint">If you believe this is an error, please contact your system administrator.</p>
+        """
+        return render_page(content)
 
     # pre-fill if remote_data present
     data = {}
@@ -426,7 +432,6 @@ def remote_form(token):
             "encryption": request.form.get("encryption", "").strip(),
             "hashing": request.form.get("hashing", "").strip(),
             "dh_group": request.form.get("dh_group", "").strip(),
-            "psk": request.form.get("psk", "").strip(),
             "subnets": request.form.get("subnets", "").strip(),
             "notes": request.form.get("notes", "").strip(),
         }
@@ -446,6 +451,15 @@ def local_form(token):
     vpn = get_request_by_token(token, "local")
     if not vpn:
         abort(404)
+    
+    if vpn.status == "cancelled":
+        content = """
+          <h2>Request Cancelled</h2>
+          <p>This VPN request has been cancelled by an administrator.</p>
+          <p>No further processing is possible for this request.</p>
+          <p class="hint">If you believe this is an error, please contact your system administrator.</p>
+        """
+        return render_page(content)
 
     data = {}
     if vpn.local_data:
@@ -463,7 +477,6 @@ def local_form(token):
             "encryption": request.form.get("encryption", "").strip(),
             "hashing": request.form.get("hashing", "").strip(),
             "dh_group": request.form.get("dh_group", "").strip(),
-            "psk": request.form.get("psk", "").strip(),
             "subnets": request.form.get("subnets", "").strip(),
             "notes": request.form.get("notes", "").strip(),
         }
@@ -481,6 +494,9 @@ def local_form(token):
 # When both sides have at least some details, email review links
 # -------------------------
 def maybe_transition_to_agreement(vpn_req):
+    if vpn_req.status == "cancelled":
+        return  # Don't process cancelled requests
+    
     if vpn_req.remote_data and vpn_req.local_data and vpn_req.status == "awaiting_details":
         vpn_req.status = "awaiting_agreement"
         db.session.commit()
@@ -524,7 +540,6 @@ REVIEW_TEMPLATE = """
         <tr><th>Encryption</th><td>{{ local.encryption }}</td></tr>
         <tr><th>Hashing</th><td>{{ local.hashing }}</td></tr>
         <tr><th>DH Group</th><td>{{ local.dh_group }}</td></tr>
-        <tr><th>PSK</th><td><code>{{ local.psk }}</code></td></tr>
         <tr><th>Subnets</th><td>{{ local.subnets }}</td></tr>
         <tr><th>Notes</th><td>{{ local.notes }}</td></tr>
       </table>
@@ -542,7 +557,6 @@ REVIEW_TEMPLATE = """
         <tr><th>Encryption</th><td>{{ remote.encryption }}</td></tr>
         <tr><th>Hashing</th><td>{{ remote.hashing }}</td></tr>
         <tr><th>DH Group</th><td>{{ remote.dh_group }}</td></tr>
-        <tr><th>PSK</th><td><code>{{ remote.psk }}</code></td></tr>
         <tr><th>Subnets</th><td>{{ remote.subnets }}</td></tr>
         <tr><th>Notes</th><td>{{ remote.notes }}</td></tr>
       </table>
@@ -567,6 +581,15 @@ def agree(token):
     vpn = VPNRequest.query.filter((VPNRequest.remote_token == token) | (VPNRequest.local_token == token)).first()
     if not vpn:
         abort(404)
+    
+    if vpn.status == "cancelled":
+        content = """
+          <h2>Request Cancelled</h2>
+          <p>This VPN request has been cancelled by an administrator.</p>
+          <p>No further processing is possible for this request.</p>
+          <p class="hint">If you believe this is an error, please contact your system administrator.</p>
+        """
+        return render_page(content)
 
     # determine which side this token belongs to
     side = "remote" if vpn.remote_token == token else "local"
@@ -659,6 +682,8 @@ def admin_panel():
         status_class = ""
         if req.status == "complete":
             status_class = "style='background: #dcfce7; color: #166534; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;'"
+        elif req.status == "cancelled":
+            status_class = "style='background: #fee2e2; color: #991b1b; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;'"
         elif req.status == "awaiting_agreement":
             status_class = "style='background: #fef3c7; color: #92400e; padding: 4px 8px; border-radius: 4px; font-size: 0.85rem;'"
         else:
@@ -683,15 +708,21 @@ def admin_panel():
             <td style="padding: 8px;">
               <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                 <form method="post" action="/admin/resend-initial/{req.id}" style="display: inline;">
-                  <button class="btn" style="font-size: 0.8rem; padding: 4px 8px;" type="submit">Resend Initial</button>
+                  <button class="btn" style="font-size: 0.8rem; padding: 4px 8px;" type="submit" 
+                    {'disabled' if req.status == 'cancelled' else ''}>Resend Initial</button>
                 </form>
                 <form method="post" action="/admin/resend-agreement/{req.id}" style="display: inline;">
                   <button class="btn secondary" style="font-size: 0.8rem; padding: 4px 8px;" type="submit" 
-                    {'disabled' if not (req.remote_data and req.local_data) else ''}>Resend Agreement</button>
+                    {'disabled' if not (req.remote_data and req.local_data) or req.status == 'cancelled' else ''}>Resend Agreement</button>
                 </form>
                 <form method="post" action="/admin/resend-final/{req.id}" style="display: inline;">
                   <button class="btn secondary" style="font-size: 0.8rem; padding: 4px 8px;" type="submit"
                     {'disabled' if req.status != "complete" else ''}>Resend Final</button>
+                </form>
+                <form method="post" action="/admin/cancel/{req.id}" style="display: inline;" 
+                  onsubmit="return confirm('Are you sure you want to cancel this VPN request? This action cannot be undone.')">
+                  <button class="btn" style="font-size: 0.8rem; padding: 4px 8px; background: #dc2626;" type="submit"
+                    {'disabled' if req.status in ['complete', 'cancelled'] else ''}>Cancel Request</button>
                 </form>
               </div>
             </td>
@@ -727,6 +758,10 @@ def admin_resend_initial(request_id):
     """Re-trigger initial detail request emails."""
     vpn = VPNRequest.query.get_or_404(request_id)
     
+    if vpn.status == "cancelled":
+        flash(f"Cannot resend emails - VPN request #{request_id} has been cancelled", "error")
+        return redirect(url_for("admin_panel"))
+    
     # Build links
     remote_link = urljoin(BASE_URL, f"/remote/{vpn.remote_token}")
     local_link = urljoin(BASE_URL, f"/local/{vpn.local_token}")
@@ -759,6 +794,10 @@ def admin_resend_initial(request_id):
 def admin_resend_agreement(request_id):
     """Re-trigger agreement/review emails."""
     vpn = VPNRequest.query.get_or_404(request_id)
+    
+    if vpn.status == "cancelled":
+        flash(f"Cannot resend emails - VPN request #{request_id} has been cancelled", "error")
+        return redirect(url_for("admin_panel"))
     
     if not (vpn.remote_data and vpn.local_data):
         flash(f"Cannot resend agreement emails - both sides haven't submitted details yet", "error")
@@ -826,6 +865,23 @@ def admin_resend_final(request_id):
         send_email(addr, f"[VPN Portal] [RESENT] Finalized VPN - {vpn.vpn_name}", summary_html)
     
     flash(f"Final summary emails resent for VPN request #{request_id} ({vpn.vpn_name})", "success")
+    return redirect(url_for("admin_panel"))
+
+
+@app.route("/admin/cancel/<int:request_id>", methods=["POST"])
+def admin_cancel_request(request_id):
+    """Cancel a VPN request to stop all processing and prevent future emails."""
+    vpn = VPNRequest.query.get_or_404(request_id)
+    
+    if vpn.status in ["complete", "cancelled"]:
+        flash(f"Cannot cancel request #{request_id} - it is already {vpn.status}", "error")
+        return redirect(url_for("admin_panel"))
+    
+    # Set status to cancelled
+    vpn.status = "cancelled"
+    db.session.commit()
+    
+    flash(f"VPN request #{request_id} ({vpn.vpn_name}) has been cancelled", "success")
     return redirect(url_for("admin_panel"))
 
 
