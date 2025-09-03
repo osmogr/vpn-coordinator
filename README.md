@@ -6,8 +6,10 @@ A Flask-based web application for coordinating site-to-site VPN requests between
 
 - **Initial VPN Request Form**: Collect basic VPN requirements and contact information
 - **Tokenized Access**: Secure unique links sent to remote contacts and local teams
-- **Separate Forms**: Remote and local teams fill in their technical details independently
-- **Review & Agreement Process**: Both parties must review and agree to the final configuration
+- **Structured Detail Forms**: Remote and local teams fill in their technical details using dropdown menus with preferred values to prevent configuration errors and ensure consistency
+- **Cryptographic Parameter Dropdowns**: Pre-defined options for encryption, authentication, DH groups with clearly marked preferred values (e.g., "AES256 (Preferred)")
+- **Phase 1 & Phase 2 Configuration**: Organized forms with separate sections for IKE Phase 1 and Phase 2 parameters
+- **Review & Agreement Process**: Both parties must review and agree to the final configuration with enhanced structured display
 - **Admin Panel**: Manage all VPN requests and resend email notifications
 - **Email Integration**: Automated email notifications throughout the process
 - **Document Generation**: Professional PDF and TXT documents for completed VPN requests
@@ -20,6 +22,16 @@ A Flask-based web application for coordinating site-to-site VPN requests between
 The initial form where VPN requests are submitted:
 
 ![VPN Submission Form](https://github.com/user-attachments/assets/35895014-d17e-47c6-a454-519f613681d4)
+
+### VPN Detail Form with Dropdown Menus
+The enhanced remote/local forms with structured Phase 1 and Phase 2 sections featuring dropdown menus for cryptographic parameters. Preferred values are clearly marked and selected by default to guide users toward recommended security settings:
+
+![Detail Form with Dropdowns](https://github.com/user-attachments/assets/61cfd885-699f-4915-9c8c-316610a9d00f)
+
+### Enhanced Review Page
+The structured review page displaying configuration details in organized Phase 1 and Phase 2 sections, making it easier to compare settings between local and remote parties:
+
+![Enhanced Review Page](https://github.com/user-attachments/assets/776c002e-40bd-4f4f-b3fb-71d13036a7ab)
 
 ### Admin Panel
 Administrative interface for managing VPN requests with document download capabilities:
@@ -81,27 +93,37 @@ After submission, the system automatically:
 - Each party receives a link to their specific form
 
 ### 3. Remote Team Form
-The remote contact receives a link to provide:
-- Gateway IP address
-- IKE version and configuration
-- Cryptographic settings
-- Diffie-Hellman group
-- Protected subnets
-- Additional notes
+The remote contact receives a link to provide technical details through structured dropdown menus:
+
+**Phase 1 Configuration:**
+- **Encryption**: Choose from AES256 (Preferred) or AES128
+- **Authentication**: Select SHA256 (Preferred) or SHA1  
+- **DH Group**: Pick from options 14 (Preferred), 18, 19, 20, or 22
+- **Life Time**: Text entry with "86400 (Preferred)" placeholder guidance
+
+**Phase 2 Configuration:**
+- **ESP Encryption**: Choose from AES256 (Preferred) or AES128
+- **ESP Hash**: Select SHA256 (Preferred) or SHA1
+- **Life Time**: Text entry with "28800 (Preferred)" placeholder guidance
+- **PFS**: Choose between Disabled (Preferred) or Enabled
+
+**Additional Information:**
+- Gateway IP address and IKE version (text fields)
+- Protected subnets and additional notes
 
 ### 4. Local Team Form  
-The local network team receives a link to provide:
-- Local gateway configuration
-- IKE and encryption preferences
-- Local protected networks
+The local network team receives a link to provide their configuration using the same structured dropdown format:
+- Identical Phase 1 and Phase 2 dropdown options as remote form
+- Local gateway configuration and protected networks
 - Technical notes and requirements
+- Consistent user experience with preferred values clearly marked
 
 ### 5. Review & Agreement
 When both sides submit their details:
-- Review emails are sent to both parties
-- Each side can review the complete configuration
+- Review emails are sent to both parties with structured Phase 1/Phase 2 display
+- Each side can review the complete configuration in an organized format
 - Both parties must explicitly agree to proceed
-- Either side can edit their information if needed
+- Either side can edit their information if needed (form state is preserved)
 
 ### 6. Finalization
 Once both parties agree:
