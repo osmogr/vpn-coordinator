@@ -29,8 +29,6 @@ SECURITY NOTES
 - Tokens are unguessable UUIDs but treat links as sensitive.
 - PSKs are stored in plaintext for demo simplicity — do NOT use this as-is in production. Use KMS/vault & encryption at rest.
 - Use HTTPS in production; add authentication / allowlists / rate limiting as needed.
-
-Author: ChatGPT (regenerated full file on user request)
 """
 
 import os
