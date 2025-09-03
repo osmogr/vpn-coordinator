@@ -10,6 +10,9 @@ A Flask-based web application for coordinating site-to-site VPN requests between
 - **Review & Agreement Process**: Both parties must review and agree to the final configuration
 - **Admin Panel**: Manage all VPN requests and resend email notifications
 - **Email Integration**: Automated email notifications throughout the process
+- **Document Generation**: Professional PDF and TXT documents for completed VPN requests
+- **Email Attachments**: Automatic attachment of PDF and TXT documents to final summary emails
+- **Document Downloads**: Admin panel download links for easy access to generated documents
 
 ## Screenshots
 
@@ -19,9 +22,9 @@ The initial form where VPN requests are submitted:
 ![VPN Submission Form](https://github.com/user-attachments/assets/35895014-d17e-47c6-a454-519f613681d4)
 
 ### Admin Panel
-Administrative interface for managing VPN requests with example data:
+Administrative interface for managing VPN requests with document download capabilities:
 
-![Admin Panel](https://github.com/user-attachments/assets/a16bd377-babb-47ad-abc3-11b02d22954e)
+![Admin Panel](https://github.com/user-attachments/assets/a84fecb5-c56d-40a8-bdb4-10ebed5ea2a5)
 
 ## Quick Start
 
@@ -45,7 +48,7 @@ Administrative interface for managing VPN requests with example data:
 
 3. **Install dependencies**
    ```bash
-   pip install flask flask-sqlalchemy
+   pip install flask flask-sqlalchemy reportlab
    ```
 
 4. **Set environment variables (optional)**
@@ -106,6 +109,13 @@ Once both parties agree:
 - VPN request marked as completed
 - Configuration details preserved for implementation
 
+### 7. Document Generation
+For completed VPN requests:
+- **PDF Documents**: Professional formatted documents with tables, sections, and proper styling
+- **TXT Documents**: Plain text format for easy archival and system integration
+- **Email Attachments**: PDF and TXT files automatically attached to final summary emails
+- **Admin Downloads**: Documents available for download from the admin panel
+
 ## Admin Panel
 
 Access the admin panel at `/admin` to:
@@ -114,7 +124,11 @@ Access the admin panel at `/admin` to:
 - Resend email notifications:
   - **Resend Initial**: Re-send initial access links
   - **Resend Agreement**: Re-send review & agreement emails
-  - **Resend Final**: Re-send final summary emails
+  - **Resend Final**: Re-send final summary emails (includes document attachments)
+- Download generated documents:
+  - **📄 PDF**: Download professional formatted documentation
+  - **📝 TXT**: Download plain text documentation
+  - *Note: Download links only appear for completed VPN requests*
 
 ## Configuration
 
@@ -157,6 +171,29 @@ The application uses SQLite by default with the following tables:
 
 Database file is created automatically as `vpn_portal.db` in the project directory.
 
+## Document Generation
+
+The application generates professional documentation for completed VPN requests:
+
+### Document Types
+- **PDF Documents**: Professional formatted files with:
+  - Proper styling and layout using ReportLab
+  - Tables for technical specifications
+  - Complete VPN request details and metadata
+  - Contact information for both parties
+  - Agreement status tracking
+
+- **TXT Documents**: Plain text files containing:
+  - All VPN request information in readable format
+  - Technical specifications in structured text
+  - Easy archival and system integration format
+
+### Document Storage
+- Generated documents are stored in the `documents/` directory
+- Filenames include VPN name and request ID for easy identification
+- Documents are automatically created when VPN requests are completed
+- Files are attached to final summary emails and available for admin download
+
 ## Development
 
 ### Running in Development Mode
@@ -176,7 +213,7 @@ The application runs in debug mode by default, providing:
 
 1. **Module not found errors**
    ```bash
-   pip install flask flask-sqlalchemy
+   pip install flask flask-sqlalchemy reportlab
    ```
 
 2. **Email not sending**
@@ -205,6 +242,7 @@ The application runs in debug mode by default, providing:
 - `GET /agree/<token>`: Review and agreement page
 - `POST /agree/<token>`: Submit agreement
 - `GET /admin`: Admin panel
+- `GET /admin/download/<request_id>/<file_type>`: Download generated documents (PDF or TXT)
 - `GET /_status`: Application health check
 
 ## License
