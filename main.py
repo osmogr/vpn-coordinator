@@ -402,7 +402,7 @@ HEADER_HTML = f"""
   </div>
   <div style="text-align:right; display: flex; gap: 12px; align-items: center;">
     <a href="/admin" style="color: #cbd5e1; text-decoration: none; padding: 4px 8px; border-radius: 4px; background: rgba(255,255,255,0.1);">Admin Panel</a>
-    <small class="muted">Single-file demo — set BASE_URL env var for correct links</small>
+    <small class="muted">Not For Production!</small>
   </div>
 </header>
 """
