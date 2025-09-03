@@ -1122,21 +1122,17 @@ def admin_panel():
               <div style="display: flex; gap: 4px; flex-wrap: wrap;">
                 <form method="post" action="/admin/resend-initial/{req.id}" style="display: inline;">
                   <button class="btn" style="font-size: 0.8rem; padding: 4px 8px;" type="submit" 
-                    {'disabled' if req.status == 'cancelled' else ''}>Resend Initial</button>
+                    {'disabled' if req.status in ['cancelled', 'complete'] else ''}>Resend Initial</button>
                 </form>
                 <form method="post" action="/admin/resend-agreement/{req.id}" style="display: inline;">
                   <button class="btn secondary" style="font-size: 0.8rem; padding: 4px 8px;" type="submit" 
-                    {'disabled' if not (req.remote_data and req.local_data) or req.status == 'cancelled' else ''}>Resend Agreement</button>
+                    {'disabled' if not (req.remote_data and req.local_data) or req.status in ['cancelled', 'complete'] else ''}>Resend Agreement</button>
                 </form>
                 <form method="post" action="/admin/resend-final/{req.id}" style="display: inline;">
                   <button class="btn secondary" style="font-size: 0.8rem; padding: 4px 8px;" type="submit"
                     {'disabled' if req.status != "complete" else ''}>Resend Final</button>
                 </form>
-                <form method="post" action="/admin/cancel/{req.id}" style="display: inline;" 
-                  onsubmit="return confirm('Are you sure you want to cancel this VPN request? This action cannot be undone.')">
-                  <button class="btn" style="font-size: 0.8rem; padding: 4px 8px; background: #dc2626;" type="submit"
-                    {'disabled' if req.status in ['complete', 'cancelled'] else ''}>Cancel Request</button>
-                </form>
+                {'<form method="post" action="/admin/cancel/' + str(req.id) + '" style="display: inline;" onsubmit="return confirm(\'Are you sure you want to cancel this VPN request? This action cannot be undone.\')"><button class="btn" style="font-size: 0.8rem; padding: 4px 8px; background: #dc2626;" type="submit">Cancel Request</button></form>' if req.status not in ['complete', 'cancelled'] else ''}
               </div>
               {'<div style="margin-top: 8px; display: flex; gap: 4px; flex-wrap: wrap;"><a href="/admin/download/' + str(req.id) + '/pdf" class="btn secondary" style="font-size: 0.7rem; padding: 3px 6px; text-decoration: none;">📄 PDF</a><a href="/admin/download/' + str(req.id) + '/txt" class="btn secondary" style="font-size: 0.7rem; padding: 3px 6px; text-decoration: none;">📝 TXT</a></div>' if req.status == "complete" else ''}
             </td>
