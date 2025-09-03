@@ -49,7 +49,7 @@ import smtplib
 
 # PDF generation imports
 from reportlab.lib.pagesizes import letter, A4
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib import colors
@@ -225,7 +225,7 @@ def generate_pdf_file(vpn_request):
     styles = getSampleStyleSheet()
     story = []
     
-    # Title
+    # Define styles
     title_style = ParagraphStyle(
         'CustomTitle',
         parent=styles['Heading1'],
@@ -234,10 +234,16 @@ def generate_pdf_file(vpn_request):
         alignment=TA_CENTER,
         textColor=colors.darkblue
     )
-    story.append(Paragraph("VPN REQUEST SUMMARY", title_style))
-    story.append(Spacer(1, 12))
     
-    # Basic Information Section
+    page_title_style = ParagraphStyle(
+        'PageTitle',
+        parent=styles['Heading1'],
+        fontSize=16,
+        spaceAfter=20,
+        alignment=TA_CENTER,
+        textColor=colors.darkblue
+    )
+    
     section_style = ParagraphStyle(
         'SectionHeader',
         parent=styles['Heading2'],
@@ -247,7 +253,10 @@ def generate_pdf_file(vpn_request):
         textColor=colors.darkblue
     )
     
-    story.append(Paragraph("Basic Information", section_style))
+    # ========== PAGE 1: Basic Information / Request Info ==========
+    story.append(Paragraph("VPN REQUEST SUMMARY", title_style))
+    story.append(Spacer(1, 12))
+    story.append(Paragraph("Basic Information / Request Info", section_style))
     
     basic_data = [
         ['Request ID', f'#{vpn_request.id}'],
@@ -276,10 +285,13 @@ def generate_pdf_file(vpn_request):
     ]))
     
     story.append(basic_table)
-    story.append(Spacer(1, 20))
     
-    # Remote Side Section
-    story.append(Paragraph("Remote Side Details", section_style))
+    # Page break to Page 2
+    story.append(PageBreak())
+    
+    # ========== PAGE 2: Remote Side Details ==========
+    story.append(Paragraph("Remote Side Details", page_title_style))
+    story.append(Spacer(1, 20))
     
     remote_table_data = [
         ['Contact Name', vpn_request.remote_contact_name],
@@ -305,10 +317,13 @@ def generate_pdf_file(vpn_request):
     ]))
     
     story.append(remote_table)
-    story.append(Spacer(1, 20))
     
-    # Local Side Section  
-    story.append(Paragraph("Local Side Details", section_style))
+    # Page break to Page 3
+    story.append(PageBreak())
+    
+    # ========== PAGE 3: Local Side Details ==========  
+    story.append(Paragraph("Local Side Details", page_title_style))
+    story.append(Spacer(1, 20))
     
     local_table_data = [
         ['Team Email', vpn_request.local_team_email]
@@ -333,15 +348,25 @@ def generate_pdf_file(vpn_request):
     ]))
     
     story.append(local_table)
+    
+    # Page break to Page 4
+    story.append(PageBreak())
+    
+    # ========== PAGE 4: Agreement Status / Date Completed ==========
+    story.append(Paragraph("Agreement Status / Date Completed", page_title_style))
     story.append(Spacer(1, 20))
     
-    # Agreement Status
-    story.append(Paragraph("Agreement Status", section_style))
+    # Calculate date completed if both parties agreed
+    date_completed = "N/A"
+    if vpn_request.remote_agreed and vpn_request.local_agreed:
+        # Use current datetime for completed date (in production, this might be stored)
+        date_completed = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     
     agreement_data = [
         ['Remote Party Agreed', 'Yes' if vpn_request.remote_agreed else 'No'],
         ['Local Party Agreed', 'Yes' if vpn_request.local_agreed else 'No'],
-        ['Overall Status', 'Complete' if (vpn_request.remote_agreed and vpn_request.local_agreed) else 'Pending']
+        ['Overall Status', 'Complete' if (vpn_request.remote_agreed and vpn_request.local_agreed) else 'Pending'],
+        ['Date Completed', date_completed]
     ]
     
     agreement_table = Table(agreement_data, colWidths=[150, 350])
