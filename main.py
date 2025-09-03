@@ -673,14 +673,54 @@ SIDE_FORM_TEMPLATE = """
   <label>IKE Version</label>
   <input type="text" name="ike_version" value="{{ data.get('ike_version','') }}" placeholder="e.g. IKEv2">
 
-  <label>Encryption (phase1/phase2)</label>
-  <input type="text" name="encryption" value="{{ data.get('encryption','') }}" placeholder="e.g. AES256/AES256">
+  <h3>Phase 1</h3>
 
-  <label>Hashing</label>
-  <input type="text" name="hashing" value="{{ data.get('hashing','') }}" placeholder="e.g. SHA256">
+  <label>Encryption</label>
+  <select name="phase1_encryption">
+    <option value="AES256" {{ 'selected' if data.get('phase1_encryption','') == 'AES256' else '' }}>AES256 (Preferred)</option>
+    <option value="AES128" {{ 'selected' if data.get('phase1_encryption','') == 'AES128' else '' }}>AES128</option>
+  </select>
+
+  <label>Authentication</label>
+  <select name="phase1_authentication">
+    <option value="SHA256" {{ 'selected' if data.get('phase1_authentication','') == 'SHA256' else '' }}>SHA256 (Preferred)</option>
+    <option value="SHA1" {{ 'selected' if data.get('phase1_authentication','') == 'SHA1' else '' }}>SHA1</option>
+  </select>
 
   <label>DH Group</label>
-  <input type="text" name="dh_group" value="{{ data.get('dh_group','') }}" placeholder="e.g. 14, 19">
+  <select name="phase1_dh_group">
+    <option value="14" {{ 'selected' if data.get('phase1_dh_group','') == '14' else '' }}>14 (Preferred)</option>
+    <option value="18" {{ 'selected' if data.get('phase1_dh_group','') == '18' else '' }}>18</option>
+    <option value="19" {{ 'selected' if data.get('phase1_dh_group','') == '19' else '' }}>19</option>
+    <option value="20" {{ 'selected' if data.get('phase1_dh_group','') == '20' else '' }}>20</option>
+    <option value="22" {{ 'selected' if data.get('phase1_dh_group','') == '22' else '' }}>22</option>
+  </select>
+
+  <label>Life Time</label>
+  <input type="text" name="phase1_lifetime" value="{{ data.get('phase1_lifetime','') }}" placeholder="86400 (Preferred)">
+
+  <h3>Phase 2</h3>
+
+  <label>ESP Encryption</label>
+  <select name="phase2_esp_encryption">
+    <option value="AES256" {{ 'selected' if data.get('phase2_esp_encryption','') == 'AES256' else '' }}>AES256 (Preferred)</option>
+    <option value="AES128" {{ 'selected' if data.get('phase2_esp_encryption','') == 'AES128' else '' }}>AES128</option>
+  </select>
+
+  <label>ESP Hash</label>
+  <select name="phase2_esp_hash">
+    <option value="SHA256" {{ 'selected' if data.get('phase2_esp_hash','') == 'SHA256' else '' }}>SHA256 (Preferred)</option>
+    <option value="SHA1" {{ 'selected' if data.get('phase2_esp_hash','') == 'SHA1' else '' }}>SHA1</option>
+  </select>
+
+  <label>Life Time</label>
+  <input type="text" name="phase2_lifetime" value="{{ data.get('phase2_lifetime','') }}" placeholder="28800 (Preferred)">
+
+  <label>PFS</label>
+  <select name="phase2_pfs">
+    <option value="Disabled" {{ 'selected' if data.get('phase2_pfs','') == 'Disabled' else '' }}>Disabled (Preferred)</option>
+    <option value="Enabled" {{ 'selected' if data.get('phase2_pfs','') == 'Enabled' else '' }}>Enabled</option>
+  </select>
 
   <label>Protected Subnets (comma-separated CIDRs)</label>
   <textarea name="subnets">{{ data.get('subnets','') }}</textarea>
@@ -727,9 +767,14 @@ def remote_form(token):
             "contact_email": request.form.get("contact_email", "").strip(),
             "gateway": request.form.get("gateway", "").strip(),
             "ike_version": request.form.get("ike_version", "").strip(),
-            "encryption": request.form.get("encryption", "").strip(),
-            "hashing": request.form.get("hashing", "").strip(),
-            "dh_group": request.form.get("dh_group", "").strip(),
+            "phase1_encryption": request.form.get("phase1_encryption", "").strip(),
+            "phase1_authentication": request.form.get("phase1_authentication", "").strip(),
+            "phase1_dh_group": request.form.get("phase1_dh_group", "").strip(),
+            "phase1_lifetime": request.form.get("phase1_lifetime", "").strip(),
+            "phase2_esp_encryption": request.form.get("phase2_esp_encryption", "").strip(),
+            "phase2_esp_hash": request.form.get("phase2_esp_hash", "").strip(),
+            "phase2_lifetime": request.form.get("phase2_lifetime", "").strip(),
+            "phase2_pfs": request.form.get("phase2_pfs", "").strip(),
             "subnets": request.form.get("subnets", "").strip(),
             "notes": request.form.get("notes", "").strip(),
         }
@@ -772,9 +817,14 @@ def local_form(token):
             "contact_email": request.form.get("contact_email", "").strip(),
             "gateway": request.form.get("gateway", "").strip(),
             "ike_version": request.form.get("ike_version", "").strip(),
-            "encryption": request.form.get("encryption", "").strip(),
-            "hashing": request.form.get("hashing", "").strip(),
-            "dh_group": request.form.get("dh_group", "").strip(),
+            "phase1_encryption": request.form.get("phase1_encryption", "").strip(),
+            "phase1_authentication": request.form.get("phase1_authentication", "").strip(),
+            "phase1_dh_group": request.form.get("phase1_dh_group", "").strip(),
+            "phase1_lifetime": request.form.get("phase1_lifetime", "").strip(),
+            "phase2_esp_encryption": request.form.get("phase2_esp_encryption", "").strip(),
+            "phase2_esp_hash": request.form.get("phase2_esp_hash", "").strip(),
+            "phase2_lifetime": request.form.get("phase2_lifetime", "").strip(),
+            "phase2_pfs": request.form.get("phase2_pfs", "").strip(),
             "subnets": request.form.get("subnets", "").strip(),
             "notes": request.form.get("notes", "").strip(),
         }
@@ -835,9 +885,16 @@ REVIEW_TEMPLATE = """
         <tr><th>Contact</th><td>{{ local.contact_name }} &lt;{{ local.contact_email }}&gt;</td></tr>
         <tr><th>Gateway</th><td>{{ local.gateway }}</td></tr>
         <tr><th>IKE</th><td>{{ local.ike_version }}</td></tr>
-        <tr><th>Encryption</th><td>{{ local.encryption }}</td></tr>
-        <tr><th>Hashing</th><td>{{ local.hashing }}</td></tr>
-        <tr><th>DH Group</th><td>{{ local.dh_group }}</td></tr>
+        <tr><th colspan="2"><strong>Phase 1</strong></th></tr>
+        <tr><th>Encryption</th><td>{{ local.phase1_encryption }}</td></tr>
+        <tr><th>Authentication</th><td>{{ local.phase1_authentication }}</td></tr>
+        <tr><th>DH Group</th><td>{{ local.phase1_dh_group }}</td></tr>
+        <tr><th>Life Time</th><td>{{ local.phase1_lifetime }}</td></tr>
+        <tr><th colspan="2"><strong>Phase 2</strong></th></tr>
+        <tr><th>ESP Encryption</th><td>{{ local.phase2_esp_encryption }}</td></tr>
+        <tr><th>ESP Hash</th><td>{{ local.phase2_esp_hash }}</td></tr>
+        <tr><th>Life Time</th><td>{{ local.phase2_lifetime }}</td></tr>
+        <tr><th>PFS</th><td>{{ local.phase2_pfs }}</td></tr>
         <tr><th>Subnets</th><td>{{ local.subnets }}</td></tr>
         <tr><th>Notes</th><td>{{ local.notes }}</td></tr>
       </table>
@@ -852,9 +909,16 @@ REVIEW_TEMPLATE = """
         <tr><th>Contact</th><td>{{ remote.contact_name }} &lt;{{ remote.contact_email }}&gt;</td></tr>
         <tr><th>Gateway</th><td>{{ remote.gateway }}</td></tr>
         <tr><th>IKE</th><td>{{ remote.ike_version }}</td></tr>
-        <tr><th>Encryption</th><td>{{ remote.encryption }}</td></tr>
-        <tr><th>Hashing</th><td>{{ remote.hashing }}</td></tr>
-        <tr><th>DH Group</th><td>{{ remote.dh_group }}</td></tr>
+        <tr><th colspan="2"><strong>Phase 1</strong></th></tr>
+        <tr><th>Encryption</th><td>{{ remote.phase1_encryption }}</td></tr>
+        <tr><th>Authentication</th><td>{{ remote.phase1_authentication }}</td></tr>
+        <tr><th>DH Group</th><td>{{ remote.phase1_dh_group }}</td></tr>
+        <tr><th>Life Time</th><td>{{ remote.phase1_lifetime }}</td></tr>
+        <tr><th colspan="2"><strong>Phase 2</strong></th></tr>
+        <tr><th>ESP Encryption</th><td>{{ remote.phase2_esp_encryption }}</td></tr>
+        <tr><th>ESP Hash</th><td>{{ remote.phase2_esp_hash }}</td></tr>
+        <tr><th>Life Time</th><td>{{ remote.phase2_lifetime }}</td></tr>
+        <tr><th>PFS</th><td>{{ remote.phase2_pfs }}</td></tr>
         <tr><th>Subnets</th><td>{{ remote.subnets }}</td></tr>
         <tr><th>Notes</th><td>{{ remote.notes }}</td></tr>
       </table>
