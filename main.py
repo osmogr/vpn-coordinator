@@ -33,6 +33,7 @@ SECURITY NOTES
 import os
 import json
 import uuid
+import ipaddress
 from urllib.parse import urljoin
 from datetime import datetime
 
@@ -389,6 +390,61 @@ def generate_pdf_file(vpn_request):
     return filepath, filename
 
 # -------------------------
+# RFC1918 ACL helpers  
+# -------------------------
+def get_client_ip():
+    """Get the client's IP address, handling proxies."""
+    # Check for forwarded headers first (in case of proxy/load balancer)
+    if request.headers.getlist("X-Forwarded-For"):
+        # Take the first IP in the chain (original client)
+        ip = request.headers.getlist("X-Forwarded-For")[0].split(',')[0].strip()
+    elif request.headers.get('X-Real-IP'):
+        ip = request.headers.get('X-Real-IP')
+    else:
+        ip = request.remote_addr
+    
+    return ip
+
+def is_rfc1918_ip(ip_str):
+    """Check if an IP address is within RFC1918 private address ranges."""
+    try:
+        ip = ipaddress.ip_address(ip_str)
+        
+        # Define RFC1918 networks
+        rfc1918_networks = [
+            ipaddress.ip_network('10.0.0.0/8'),      # 10.0.0.0 to 10.255.255.255
+            ipaddress.ip_network('172.16.0.0/12'),   # 172.16.0.0 to 172.31.255.255  
+            ipaddress.ip_network('192.168.0.0/16'),  # 192.168.0.0 to 192.168.255.255
+        ]
+        
+        # Check if IP is in any RFC1918 network
+        for network in rfc1918_networks:
+            if ip in network:
+                return True
+                
+        return False
+    except (ipaddress.AddressValueError, ValueError):
+        # Invalid IP address format
+        return False
+
+def render_access_denied_page(client_ip):
+    """Render access denied page for non-RFC1918 IPs."""
+    content = f"""
+      <h2>Access Denied</h2>
+      <p><strong>Sorry, access to the VPN request form is restricted to private networks only.</strong></p>
+      <p>Your IP address <code>{client_ip}</code> is not within the allowed RFC1918 private address ranges:</p>
+      <ul>
+        <li>10.0.0.0/8 (10.0.0.0 to 10.255.255.255)</li>
+        <li>172.16.0.0/12 (172.16.0.0 to 172.31.255.255)</li>
+        <li>192.168.0.0/16 (192.168.0.0 to 192.168.255.255)</li>
+      </ul>
+      <p class="hint">If you believe this is an error, please contact your system administrator.</p>
+      <p class="hint">Note: Detail and agreement pages remain accessible from any IP using the links provided in email notifications.</p>
+    """
+    return render_page(content, messages=[("error", "Access denied - IP address not in allowed range")])
+
+
+# -------------------------
 # Shared CSS + Header HTML
 # -------------------------
 BASE_CSS = """
@@ -559,6 +615,11 @@ from datetime import datetime
 
 @app.route("/")
 def index():
+    # Check if client IP is from RFC1918 (private) network
+    client_ip = get_client_ip()
+    if not is_rfc1918_ip(client_ip):
+        return render_access_denied_page(client_ip)
+    
     content = """
       <h2>New VPN Request</h2>
       <form method="post" action="/request/new" class="form-grid">
@@ -602,6 +663,11 @@ def index():
 
 @app.route("/request/new", methods=["POST"])
 def request_new():
+    # Check if client IP is from RFC1918 (private) network  
+    client_ip = get_client_ip()
+    if not is_rfc1918_ip(client_ip):
+        return render_access_denied_page(client_ip)
+    
     # Collect initial form
     vpn_name = request.form.get("vpn_name", "").strip()
     vpn_type = request.form.get("vpn_type", "").strip()
